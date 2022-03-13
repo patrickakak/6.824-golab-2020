@@ -32,11 +32,11 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		if rf.role == Leader {
 			return
 		}
-		if rf.voteFor == args.CandidateId {
+		if rf.votedFor == args.CandidateId {
 			reply.VoteGranted = true
 			return
 		}
-		if rf.voteFor != -1 && rf.voteFor != args.CandidateId {
+		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
 			// already voted
 			return
 		}
@@ -45,7 +45,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	defer rf.persist()
 	if args.Term > rf.term {
 		rf.term = args.Term
-		rf.voteFor = -1
+		rf.votedFor = -1
 		rf.changeRole(Follower)
 	}
 
@@ -54,7 +54,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	rf.term = args.Term
-	rf.voteFor = args.CandidateId
+	rf.votedFor = args.CandidateId
 	reply.VoteGranted = true
 	rf.changeRole(Follower)
 	rf.resetElectionTimer()
@@ -165,7 +165,7 @@ func (rf *Raft) startElection() {
 		rf.persist()
 	}
 	if rf.role == Leader {
-		rf.resetHeartBeatTimers()
+		rf.resetHeartbeatTimers()
 	}
 	rf.mu.Unlock()
 }
