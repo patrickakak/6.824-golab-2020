@@ -58,7 +58,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	reply.VoteGranted = true
 	rf.changeRole(Follower)
 	rf.resetElectionTimer()
-	return
 }
 
 func (rf *Raft) resetElectionTimer() {
@@ -80,7 +79,7 @@ func (rf *Raft) sendRequestVoteToPeer(server int, args *RequestVoteArgs, reply *
 
 		go func() {
 			ok := rf.peers[server].Call("Raft.RequestVote", args, &r)
-			if ok == false {
+			if !ok {
 				time.Sleep(time.Millisecond * 10)
 			}
 			ch <- ok
@@ -124,7 +123,7 @@ func (rf *Raft) startElection() {
 	grantedCount := 1
 	chResCount := 1
 	votesCh := make(chan bool, len(rf.peers))
-	for index, _ := range rf.peers {
+	for index := range rf.peers {
 		if index == rf.me {
 			continue
 		}
@@ -148,7 +147,7 @@ func (rf *Raft) startElection() {
 	for {
 		r := <-votesCh
 		chResCount += 1
-		if r == true {
+		if r {
 			grantedCount += 1
 		}
 		if chResCount == len(rf.peers) || grantedCount > len(rf.peers)/2 || chResCount-grantedCount > len(rf.peers)/2 {

@@ -369,19 +369,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// leader sending log entries
 	for i := range peers {
-		if i == rf.me {
-			continue
-		}
-		go func(index int) {
-			for {
-				select {
-				case <-rf.stopCh:
-					return
-				case <-rf.appendEntriesTimers[index].C:
-					rf.appendEntriesToPeer(index)
+		if i != rf.me {
+			go func(index int) {
+				for {
+					select {
+					case <-rf.stopCh:
+						return
+					case <-rf.appendEntriesTimers[index].C:
+						rf.appendEntriesToPeer(index)
+					}
 				}
-			}
-		}(i)
+			}(i)
+		}
 	}
 
 	return rf
