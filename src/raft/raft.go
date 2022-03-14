@@ -32,7 +32,7 @@ import (
 const (
 	ElectionTimeout  = time.Millisecond * 300
 	HeartbeatTimeout = time.Millisecond * 150
-	ApplyInterval    = time.Millisecond * 100 // apply log
+	ApplyLogInterval = time.Millisecond * 100
 	RPCTimeout       = time.Millisecond * 100
 )
 
@@ -249,7 +249,7 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) startApplyLogs() {
-	defer rf.applyTimer.Reset(ApplyInterval)
+	defer rf.applyTimer.Reset(ApplyLogInterval)
 
 	rf.mu.Lock()
 	var msgs []ApplyMsg
@@ -260,7 +260,6 @@ func (rf *Raft) startApplyLogs() {
 			Command:      "installSnapShot",
 			CommandIndex: rf.lastSnapshotIndex,
 		})
-
 	} else if rf.commitIndex <= rf.lastApplied {
 		// snapShot didn't update commitidx
 		msgs = make([]ApplyMsg, 0)
@@ -337,10 +336,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	for i := range rf.peers {
 		rf.appendEntriesTimers[i] = time.NewTimer(HeartbeatTimeout)
 	}
-	rf.applyTimer = time.NewTimer(ApplyInterval)
+	rf.applyTimer = time.NewTimer(ApplyLogInterval)
 	rf.notifyApplyCh = make(chan struct{}, 100)
 
-	// start an election
+	// start an election when one of election timer times out
 	go func() {
 		for {
 			select {
@@ -352,21 +351,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 		}
 	}()
 
-	// apply log
-	go func() {
-		for {
-			select {
-			case <-rf.stopCh:
-				return
-			case <-rf.applyTimer.C:
-				rf.notifyApplyCh <- struct{}{}
-			case <-rf.notifyApplyCh:
-				rf.startApplyLogs()
-			}
-		}
-	}()
-
-	// leader sending log entries
+	// leader sending log entries to followers
 	for i := range peers {
 		if i != rf.me {
 			go func(index int) {
@@ -381,6 +366,20 @@ func Make(peers []*labrpc.ClientEnd, me int,
 			}(i)
 		}
 	}
+
+	// apply logs (after reaching a quorum commit on new log entries)
+	go func() {
+		for {
+			select {
+			case <-rf.stopCh:
+				return
+			case <-rf.applyTimer.C:
+				rf.notifyApplyCh <- struct{}{}
+			case <-rf.notifyApplyCh:
+				rf.startApplyLogs()
+			}
+		}
+	}()
 
 	return rf
 }

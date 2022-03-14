@@ -99,8 +99,7 @@ func (rf *Raft) getAppendLogs(peerIdx int) (prevLogIndex, prevLogTerm int, res [
 	nextIdx := rf.nextIndex[peerIdx]
 	lastLogTerm, lastLogIndex := rf.lastLogTermIndex()
 	if nextIdx <= rf.lastSnapshotIndex || nextIdx > lastLogIndex {
-		prevLogIndex = lastLogIndex
-		prevLogTerm = lastLogTerm
+		prevLogIndex, prevLogTerm = lastLogIndex, lastLogTerm
 		return
 	}
 
@@ -180,9 +179,10 @@ func (rf *Raft) appendEntriesToPeer(peerIdx int) {
 		// call ok, check reply
 		rf.mu.Lock()
 		if reply.Term > rf.term {
-			rf.changeRole(Follower)
-			rf.resetElectionTimer()
 			rf.term = reply.Term
+			rf.changeRole(Follower)
+			rf.votedFor = -1
+			rf.resetElectionTimer()
 			rf.persist()
 			rf.mu.Unlock()
 			return
@@ -199,42 +199,38 @@ func (rf *Raft) appendEntriesToPeer(peerIdx int) {
 				rf.matchIndex[peerIdx] = reply.NextIndex - 1
 			}
 			if len(args.Entries) > 0 && args.Entries[len(args.Entries)-1].Term == rf.term {
-				// only commit it's own term index
-				rf.updateCommitIndex()
+				rf.commitLogEntries()
 			}
 			rf.persist()
 			rf.mu.Unlock()
 			return
-		}
-
-		// success == false
-		if reply.NextIndex != 0 {
-			if reply.NextIndex > rf.lastSnapshotIndex {
-				rf.nextIndex[peerIdx] = reply.NextIndex
-				rf.mu.Unlock()
-				continue
-				// need retry
-			} else {
-				// send sn rpc
-				go rf.sendInstallSnapshot(peerIdx)
-				rf.mu.Unlock()
-				return
-			}
 		} else {
-			// out-of-order?
-			rf.mu.Unlock()
+			if reply.NextIndex != 0 {
+				if reply.NextIndex > rf.lastSnapshotIndex {
+					rf.nextIndex[peerIdx] = reply.NextIndex
+					rf.mu.Unlock()
+					continue
+				} else {
+					go rf.sendInstallSnapshot(peerIdx)
+					rf.mu.Unlock()
+					return
+				}
+			} else {
+				// out-of-order?
+				rf.mu.Unlock()
+			}
 		}
 	}
 }
 
-func (rf *Raft) updateCommitIndex() {
+func (rf *Raft) commitLogEntries() {
 	hasCommit := false
 	for i := rf.commitIndex + 1; i <= rf.lastSnapshotIndex+len(rf.logEntries); i++ {
-		count := 0
+		acks := 0
 		for _, m := range rf.matchIndex {
 			if m >= i {
-				count += 1
-				if count > len(rf.peers)/2 {
+				acks += 1
+				if acks > len(rf.peers)/2 {
 					rf.commitIndex = i
 					hasCommit = true
 					break
