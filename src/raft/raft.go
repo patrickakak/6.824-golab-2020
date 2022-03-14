@@ -339,7 +339,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.applyTimer = time.NewTimer(ApplyLogInterval)
 	rf.notifyApplyCh = make(chan struct{}, 100)
 
-	// start an election
+	// start an election when one of election timer times out
 	go func() {
 		for {
 			select {
@@ -351,21 +351,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 		}
 	}()
 
-	// apply log
-	go func() {
-		for {
-			select {
-			case <-rf.stopCh:
-				return
-			case <-rf.applyTimer.C:
-				rf.notifyApplyCh <- struct{}{}
-			case <-rf.notifyApplyCh:
-				rf.startApplyLogs()
-			}
-		}
-	}()
-
-	// leader sending log entries
+	// leader sending log entries to followers
 	for i := range peers {
 		if i != rf.me {
 			go func(index int) {
@@ -380,6 +366,20 @@ func Make(peers []*labrpc.ClientEnd, me int,
 			}(i)
 		}
 	}
+
+	// apply logs (after reaching a quorum commit on new log entries)
+	go func() {
+		for {
+			select {
+			case <-rf.stopCh:
+				return
+			case <-rf.applyTimer.C:
+				rf.notifyApplyCh <- struct{}{}
+			case <-rf.notifyApplyCh:
+				rf.startApplyLogs()
+			}
+		}
+	}()
 
 	return rf
 }
