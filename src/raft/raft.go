@@ -32,7 +32,7 @@ import (
 const (
 	ElectionTimeout  = time.Millisecond * 300
 	HeartbeatTimeout = time.Millisecond * 150
-	ApplyInterval    = time.Millisecond * 100 // apply log
+	ApplyLogInterval = time.Millisecond * 100
 	RPCTimeout       = time.Millisecond * 100
 )
 
@@ -249,7 +249,7 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) startApplyLogs() {
-	defer rf.applyTimer.Reset(ApplyInterval)
+	defer rf.applyTimer.Reset(ApplyLogInterval)
 
 	rf.mu.Lock()
 	var msgs []ApplyMsg
@@ -260,7 +260,6 @@ func (rf *Raft) startApplyLogs() {
 			Command:      "installSnapShot",
 			CommandIndex: rf.lastSnapshotIndex,
 		})
-
 	} else if rf.commitIndex <= rf.lastApplied {
 		// snapShot didn't update commitidx
 		msgs = make([]ApplyMsg, 0)
@@ -337,7 +336,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	for i := range rf.peers {
 		rf.appendEntriesTimers[i] = time.NewTimer(HeartbeatTimeout)
 	}
-	rf.applyTimer = time.NewTimer(ApplyInterval)
+	rf.applyTimer = time.NewTimer(ApplyLogInterval)
 	rf.notifyApplyCh = make(chan struct{}, 100)
 
 	// start an election
