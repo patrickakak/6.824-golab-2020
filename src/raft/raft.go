@@ -31,7 +31,7 @@ import (
 
 const (
 	ElectionTimeout  = time.Millisecond * 300
-	HeartBeatTimeout = time.Millisecond * 150
+	HeartbeatTimeout = time.Millisecond * 150
 	ApplyInterval    = time.Millisecond * 100 // apply log
 	RPCTimeout       = time.Millisecond * 100
 )
@@ -88,7 +88,7 @@ type Raft struct {
 	notifyApplyCh       chan struct{}
 	stopCh              chan struct{}
 
-	voteFor           int        // server id, -1 for null
+	votedFor          int        // server id, -1 for null
 	logEntries        []LogEntry // idx==0: lastSnapshot
 	applyCh           chan ApplyMsg
 	commitIndex       int
@@ -112,7 +112,7 @@ func (rf *Raft) getPersistData() []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 	e.Encode(rf.term)
-	e.Encode(rf.voteFor)
+	e.Encode(rf.votedFor)
 	e.Encode(rf.commitIndex)
 	e.Encode(rf.lastSnapshotIndex)
 	e.Encode(rf.lastSnapshotTerm)
@@ -143,12 +143,12 @@ func (rf *Raft) readPersist(data []byte) {
 	d := labgob.NewDecoder(r)
 
 	var term int
-	var voteFor int
+	var votedFor int
 	var logs []LogEntry
 	var commitIndex, lastSnapshotIndex, lastSnapshotTerm int
 
 	if d.Decode(&term) != nil ||
-		d.Decode(&voteFor) != nil ||
+		d.Decode(&votedFor) != nil ||
 		d.Decode(&commitIndex) != nil ||
 		d.Decode(&lastSnapshotIndex) != nil ||
 		d.Decode(&lastSnapshotTerm) != nil ||
@@ -156,7 +156,7 @@ func (rf *Raft) readPersist(data []byte) {
 		log.Fatal("rf read persist err")
 	} else {
 		rf.term = term
-		rf.voteFor = voteFor
+		rf.votedFor = votedFor
 		rf.commitIndex = commitIndex
 		rf.lastSnapshotIndex = lastSnapshotIndex
 		rf.lastSnapshotTerm = lastSnapshotTerm
@@ -170,7 +170,7 @@ func (rf *Raft) changeRole(role Role) {
 	case Follower:
 	case Candidate:
 		rf.term += 1
-		rf.voteFor = rf.me
+		rf.votedFor = rf.me
 		rf.resetElectionTimer()
 	case Leader:
 		_, lastLogIndex := rf.lastLogTermIndex()
@@ -184,7 +184,6 @@ func (rf *Raft) changeRole(role Role) {
 	default:
 		panic("unknown role")
 	}
-
 }
 
 func (rf *Raft) lastLogTermIndex() (int, int) {
@@ -223,7 +222,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.matchIndex[rf.me] = index
 		rf.persist()
 	}
-	rf.resetHeartBeatTimers()
+	rf.resetHeartbeatTimers()
 	rf.mu.Unlock()
 	return index, term, isLeader
 }
@@ -328,7 +327,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	rf.stopCh = make(chan struct{})
 	rf.term = 0
-	rf.voteFor = -1
+	rf.votedFor = -1
 	rf.role = Follower
 	rf.logEntries = make([]LogEntry, 1)
 	rf.readPersist(persister.ReadRaftState())
@@ -336,10 +335,22 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.electionTimer = time.NewTimer(randElectionTimeout())
 	rf.appendEntriesTimers = make([]*time.Timer, len(rf.peers))
 	for i := range rf.peers {
-		rf.appendEntriesTimers[i] = time.NewTimer(HeartBeatTimeout)
+		rf.appendEntriesTimers[i] = time.NewTimer(HeartbeatTimeout)
 	}
 	rf.applyTimer = time.NewTimer(ApplyInterval)
 	rf.notifyApplyCh = make(chan struct{}, 100)
+
+	// start an election
+	go func() {
+		for {
+			select {
+			case <-rf.stopCh:
+				return
+			case <-rf.electionTimer.C:
+				rf.startElection()
+			}
+		}
+	}()
 
 	// apply log
 	go func() {
@@ -351,18 +362,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 				rf.notifyApplyCh <- struct{}{}
 			case <-rf.notifyApplyCh:
 				rf.startApplyLogs()
-			}
-		}
-	}()
-
-	// start an election
-	go func() {
-		for {
-			select {
-			case <-rf.stopCh:
-				return
-			case <-rf.electionTimer.C:
-				rf.startElection()
 			}
 		}
 	}()

@@ -32,11 +32,11 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		if rf.role == Leader {
 			return
 		}
-		if rf.voteFor == args.CandidateId {
+		if rf.votedFor == args.CandidateId {
 			reply.VoteGranted = true
 			return
 		}
-		if rf.voteFor != -1 && rf.voteFor != args.CandidateId {
+		if rf.votedFor != -1 && rf.votedFor != args.CandidateId {
 			// already voted
 			return
 		}
@@ -45,7 +45,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	defer rf.persist()
 	if args.Term > rf.term {
 		rf.term = args.Term
-		rf.voteFor = -1
+		rf.votedFor = -1
 		rf.changeRole(Follower)
 	}
 
@@ -54,7 +54,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	}
 
 	rf.term = args.Term
-	rf.voteFor = args.CandidateId
+	rf.votedFor = args.CandidateId
 	reply.VoteGranted = true
 	rf.changeRole(Follower)
 	rf.resetElectionTimer()
@@ -111,46 +111,45 @@ func (rf *Raft) startElection() {
 	}
 	rf.changeRole(Candidate)
 	lastLogTerm, lastLogIndex := rf.lastLogTermIndex()
-	args := RequestVoteArgs{
-		Term:         rf.term,
-		CandidateId:  rf.me,
-		LastLogIndex: lastLogIndex,
-		LastLogTerm:  lastLogTerm,
-	}
+	args := RequestVoteArgs{}
+	args.Term = rf.term
+	args.CandidateId = rf.me
+	args.LastLogIndex = lastLogIndex
+	args.LastLogTerm = lastLogTerm
 	rf.persist()
 	rf.mu.Unlock()
 
 	grantedCount := 1
-	chResCount := 1
+	votesCount := 1
 	votesCh := make(chan bool, len(rf.peers))
 	for index := range rf.peers {
-		if index == rf.me {
-			continue
-		}
-		go func(ch chan bool, index int) {
-			reply := RequestVoteReply{}
-			rf.sendRequestVoteToPeer(index, &args, &reply)
-			ch <- reply.VoteGranted
-			if reply.Term > args.Term {
-				rf.mu.Lock()
-				if rf.term < reply.Term {
-					rf.term = reply.Term
-					rf.changeRole(Follower)
-					rf.resetElectionTimer()
-					rf.persist()
+		if index != rf.me {
+			go func(ch chan bool, index int) {
+				reply := RequestVoteReply{}
+				rf.sendRequestVoteToPeer(index, &args, &reply)
+				ch <- reply.VoteGranted
+				if reply.Term > args.Term {
+					rf.mu.Lock()
+					if rf.term < reply.Term {
+						rf.term = reply.Term
+						rf.changeRole(Follower)
+						rf.votedFor = -1
+						rf.resetElectionTimer()
+						rf.persist()
+					}
+					rf.mu.Unlock()
 				}
-				rf.mu.Unlock()
-			}
-		}(votesCh, index)
+			}(votesCh, index)
+		}
 	}
 
 	for {
-		r := <-votesCh
-		chResCount += 1
-		if r {
+		voteInFavour := <-votesCh
+		votesCount += 1
+		if voteInFavour {
 			grantedCount += 1
 		}
-		if chResCount == len(rf.peers) || grantedCount > len(rf.peers)/2 || chResCount-grantedCount > len(rf.peers)/2 {
+		if votesCount == len(rf.peers) || grantedCount > len(rf.peers)/2 || votesCount-grantedCount > len(rf.peers)/2 {
 			break
 		}
 	}
@@ -165,7 +164,7 @@ func (rf *Raft) startElection() {
 		rf.persist()
 	}
 	if rf.role == Leader {
-		rf.resetHeartBeatTimers()
+		rf.resetHeartbeatTimers()
 	}
 	rf.mu.Unlock()
 }

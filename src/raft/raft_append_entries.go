@@ -127,16 +127,16 @@ func (rf *Raft) getAppendEntriesArgs(peerIdx int) AppendEntriesArgs {
 	return args
 }
 
-func (rf *Raft) resetHeartBeatTimers() {
+func (rf *Raft) resetHeartbeatTimers() {
 	for i := range rf.appendEntriesTimers {
 		rf.appendEntriesTimers[i].Stop()
 		rf.appendEntriesTimers[i].Reset(0)
 	}
 }
 
-func (rf *Raft) resetHeartBeatTimer(peerIdx int) {
+func (rf *Raft) resetHeartbeatTimer(peerIdx int) {
 	rf.appendEntriesTimers[peerIdx].Stop()
-	rf.appendEntriesTimers[peerIdx].Reset(HeartBeatTimeout)
+	rf.appendEntriesTimers[peerIdx].Reset(HeartbeatTimeout)
 }
 
 func (rf *Raft) appendEntriesToPeer(peerIdx int) {
@@ -146,12 +146,12 @@ func (rf *Raft) appendEntriesToPeer(peerIdx int) {
 	for !rf.killed() {
 		rf.mu.Lock()
 		if rf.role != Leader {
-			rf.resetHeartBeatTimer(peerIdx)
+			rf.resetHeartbeatTimer(peerIdx)
 			rf.mu.Unlock()
 			return
 		}
 		args := rf.getAppendEntriesArgs(peerIdx)
-		rf.resetHeartBeatTimer(peerIdx)
+		rf.resetHeartbeatTimer(peerIdx)
 		rf.mu.Unlock()
 
 		RPCTimer.Stop()
