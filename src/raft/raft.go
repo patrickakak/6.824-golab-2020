@@ -367,7 +367,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 		}
 	}
 
-	// apply logs (after reaching a quorum commit on new log entries)
+	// apply logs (after each raft instance commits on new log entries)
+	// send msg to applyCh so that test monitor can calculate statistics
 	go func() {
 		for {
 			select {
