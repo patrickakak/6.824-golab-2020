@@ -184,7 +184,6 @@ func (rf *Raft) changeRole(role Role) {
 	default:
 		panic("unknown role")
 	}
-
 }
 
 func (rf *Raft) lastLogTermIndex() (int, int) {
@@ -341,6 +340,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.applyTimer = time.NewTimer(ApplyInterval)
 	rf.notifyApplyCh = make(chan struct{}, 100)
 
+	// start an election
+	go func() {
+		for {
+			select {
+			case <-rf.stopCh:
+				return
+			case <-rf.electionTimer.C:
+				rf.startElection()
+			}
+		}
+	}()
+
 	// apply log
 	go func() {
 		for {
@@ -351,18 +362,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 				rf.notifyApplyCh <- struct{}{}
 			case <-rf.notifyApplyCh:
 				rf.startApplyLogs()
-			}
-		}
-	}()
-
-	// start an election
-	go func() {
-		for {
-			select {
-			case <-rf.stopCh:
-				return
-			case <-rf.electionTimer.C:
-				rf.startElection()
 			}
 		}
 	}()
