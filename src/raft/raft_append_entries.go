@@ -61,7 +61,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			reply.NextIndex = 0
 		} else {
 			reply.Success = true
-			rf.logEntries = append(rf.logEntries[:1], args.Entries...) // 保留 logs[0]
+			rf.logEntries = append(rf.logEntries[:1], args.Entries...) // keep logs[0]
 			reply.NextIndex = rf.getNextIndex()
 		}
 	} else if rf.logEntries[rf.getRealIdxByLogIndex(args.PrevLogIndex)].Term == args.PervLogTerm {
