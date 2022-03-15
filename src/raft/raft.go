@@ -79,24 +79,22 @@ type Raft struct {
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-	role Role
-	term int
-
+	role                Role
+	term                int
 	electionTimer       *time.Timer
 	appendEntriesTimers []*time.Timer
 	applyTimer          *time.Timer
 	notifyApplyCh       chan struct{}
 	stopCh              chan struct{}
-
-	votedFor          int        // server id, -1 for null
-	logEntries        []LogEntry // idx==0: lastSnapshot
-	applyCh           chan ApplyMsg
-	commitIndex       int
-	lastSnapshotIndex int
-	lastSnapshotTerm  int
-	lastApplied       int
-	nextIndex         []int
-	matchIndex        []int
+	votedFor            int        // server id, -1 for null
+	logEntries          []LogEntry // idx==0: lastSnapshot
+	applyCh             chan ApplyMsg
+	commitIndex         int
+	lastSnapshotIndex   int
+	lastSnapshotTerm    int
+	lastApplied         int
+	nextIndex           []int
+	matchIndex          []int
 }
 
 // return currentTerm and whether this server
