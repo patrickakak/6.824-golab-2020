@@ -91,13 +91,13 @@ func (ck *Clerk) Get(key string) string {
 //
 func (ck *Clerk) PutAppend(key string, value string, op string) {
 	// You will have to modify this function.
-	args := PutAppendArgs{
-		Key:      key,
-		Value:    value,
-		Op:       op,
-		MsgId:    ck.genMsgId(),
-		ClientId: ck.clientId,
-	}
+	args := PutAppendArgs{}
+	args.Key = key
+	args.Value = value
+	args.Op = op
+	args.MsgId = ck.genMsgId()
+	args.ClientId = ck.clientId
+
 	leaderId := ck.leaderId
 	for {
 		reply := PutAppendReply{}

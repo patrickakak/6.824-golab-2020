@@ -65,27 +65,26 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 		reply.Err = ErrWrongLeader
 		return
 	}
-	op := Op{
-		MsgId:    args.MsgId,
-		ReqId:    nrand(),
-		Key:      args.Key,
-		Method:   "Get",
-		ClientId: args.ClientId,
-	}
+	op := Op{}
+	op.MsgId = args.MsgId
+	op.ReqId = nrand()
+	op.Key = args.Key
+	op.Method = "Get"
+	op.ClientId = args.ClientId
+
 	res := kv.waitCmd(op)
 	reply.Err = res.Err
 	reply.Value = res.Value
 }
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	op := Op{
-		MsgId:    args.MsgId,
-		ReqId:    nrand(),
-		Key:      args.Key,
-		Value:    args.Value,
-		Method:   args.Op,
-		ClientId: args.ClientId,
-	}
+	op := Op{}
+	op.MsgId = args.MsgId
+	op.ReqId = nrand()
+	op.Key = args.Key
+	op.Value = args.Value
+	op.Method = args.Op
+	op.ClientId = args.ClientId
 	reply.Err = kv.waitCmd(op).Err
 }
 
@@ -189,10 +188,7 @@ func (kv *KVServer) waitApplyCh() {
 }
 
 func (kv *KVServer) saveSnapshot(logIndex int) {
-	if kv.maxraftstate == -1 {
-		return
-	}
-	if kv.persister.RaftStateSize() < kv.maxraftstate {
+	if kv.maxraftstate == -1 || kv.persister.RaftStateSize() < kv.maxraftstate {
 		return
 	}
 	// need snapshot
