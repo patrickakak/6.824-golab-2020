@@ -13,7 +13,6 @@ import (
 )
 
 const WaitCmdTimeOut = time.Millisecond * 500 // slow
-const MaxLockTime = time.Millisecond * 10     // debug
 
 type Op struct {
 	// Your definitions here.
@@ -39,42 +38,14 @@ type KVServer struct {
 	applyCh chan raft.ApplyMsg
 	stopCh  chan struct{}
 
-	maxraftstate int // snapshot if log grows this big
 	// Your definitions here.
-	msgNotify   map[int64]chan NotifyMsg
-	lastApplies map[int64]msgId // last apply put/append msg
-	data        map[string]string
-
+	msgNotify      map[int64]chan NotifyMsg
+	lastApplies    map[int64]msgId // last apply put/append msg
+	data           map[string]string
 	persister      *raft.Persister
 	lastApplyIndex int
 	lastApplyTerm  int
-
-	DebugLog  bool      // print log
-	lockStart time.Time // debug 用，找出长时间 lock
-	lockEnd   time.Time
-	lockName  string
-}
-
-func (kv *KVServer) lock(m string) {
-	kv.mu.Lock()
-	kv.lockStart = time.Now()
-	kv.lockName = m
-}
-
-func (kv *KVServer) unlock(m string) {
-	kv.lockEnd = time.Now()
-	duration := kv.lockEnd.Sub(kv.lockStart)
-	kv.lockName = ""
-	kv.mu.Unlock()
-	if duration > MaxLockTime {
-		kv.log(fmt.Sprintf("lock too long:%s:%s\n", m, duration))
-	}
-}
-
-func (kv *KVServer) log(m string) {
-	if kv.DebugLog {
-		log.Printf("server me: %d, log:%s", kv.me, m)
-	}
+	maxraftstate   int // snapshot if log grows this big
 }
 
 func (kv *KVServer) dataGet(key string) (err Err, val string) {
@@ -89,11 +60,6 @@ func (kv *KVServer) dataGet(key string) (err Err, val string) {
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	kv.log(fmt.Sprintf("in rpc get, args:%+v", args))
-	defer func() {
-		kv.log(fmt.Sprintf("in rpc get, args:%+v, reply:%+v", args, reply))
-	}()
-
 	_, isLeader := kv.rf.GetState()
 	if !isLeader {
 		reply.Err = ErrWrongLeader
@@ -109,13 +75,9 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	res := kv.waitCmd(op)
 	reply.Err = res.Err
 	reply.Value = res.Value
-	kv.log(fmt.Sprintf("get key:%s, err:%s, v:%s", op.Key, reply.Err, reply.Value))
 }
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	defer func() {
-		kv.log(fmt.Sprintf("in rpc putappend, args:%+v, reply:%+v", args, reply))
-	}()
 	op := Op{
 		MsgId:    args.MsgId,
 		ReqId:    nrand(),
@@ -128,25 +90,22 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 }
 
 func (kv *KVServer) removeCh(id int64) {
-	kv.lock("removeCh")
+	kv.mu.Lock()
 	delete(kv.msgNotify, id)
-	kv.unlock("removeCh")
+	kv.mu.Unlock()
 }
 
 func (kv *KVServer) waitCmd(op Op) (res NotifyMsg) {
-	kv.log("waitcmd func enter")
-
-	index, term, isLeader := kv.rf.Start(op)
+	_, _, isLeader := kv.rf.Start(op)
 	if !isLeader {
 		res.Err = ErrWrongLeader
 		return
 	}
 
-	kv.lock("waitCmd")
+	kv.mu.Lock()
 	ch := make(chan NotifyMsg, 1)
 	kv.msgNotify[op.ReqId] = ch
-	kv.unlock("waitCmd")
-	kv.log(fmt.Sprintf("start cmd: index:%d, term:%d, op:%+v", index, term, op))
+	kv.mu.Unlock()
 	t := time.NewTimer(WaitCmdTimeOut)
 	defer t.Stop()
 	select {
@@ -187,20 +146,18 @@ func (kv *KVServer) waitApplyCh() {
 	for {
 		select {
 		case <-kv.stopCh:
-			kv.log("stop ch get")
 			return
 		case msg := <-kv.applyCh:
 			if !msg.CommandValid {
-				kv.log(fmt.Sprintf("get install sn,idx: %d", msg.CommandIndex))
-				kv.lock("waitApplyCh_sn")
+				kv.mu.Lock()
 				kv.readPersist(kv.persister.ReadSnapshot())
-				kv.unlock("waitApplyCh_sn")
+				kv.mu.Unlock()
 				continue
 			}
 			msgIdx := msg.CommandIndex
 			op := msg.Command.(Op)
-			kv.lock("waitApplyCh")
 
+			kv.mu.Lock()
 			isRepeated := kv.isRepeated(op.ClientId, op.MsgId)
 			switch op.Method {
 			case "Put":
@@ -218,7 +175,6 @@ func (kv *KVServer) waitApplyCh() {
 			default:
 				panic(fmt.Sprintf("unknown method: %s", op.Method))
 			}
-			kv.log(fmt.Sprintf("apply op: msgIdx:%d, op: %+v, data:%v", msgIdx, op, kv.data[op.Key]))
 			kv.saveSnapshot(msgIdx)
 			if ch, ok := kv.msgNotify[op.ReqId]; ok {
 				_, v := kv.dataGet(op.Key)
@@ -227,7 +183,7 @@ func (kv *KVServer) waitApplyCh() {
 					Value: v,
 				}
 			}
-			kv.unlock("waitApplyCh")
+			kv.mu.Unlock()
 		}
 	}
 }
