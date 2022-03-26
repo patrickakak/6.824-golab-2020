@@ -17,7 +17,7 @@ type InstallSnapshotReply struct {
 	Term int
 }
 
-func (rf *Raft) SavePersistAndShnapshot(logIndex int, snapshotData []byte) {
+func (rf *Raft) SavePersistSnapshot(logIndex int, snapshot []byte) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
@@ -33,8 +33,8 @@ func (rf *Raft) SavePersistAndShnapshot(logIndex int, snapshotData []byte) {
 	rf.logEntries = rf.logEntries[rf.getRealIdxByLogIndex(logIndex):]
 	rf.lastSnapshotIndex = logIndex
 	rf.lastSnapshotTerm = lastLog.Term
-	persistData := rf.getPersistData()
-	rf.persister.SaveStateAndSnapshot(persistData, snapshotData)
+	state := rf.getPersistState()
+	rf.persister.SaveStateAndSnapshot(state, snapshot)
 }
 
 func (rf *Raft) sendInstallSnapshot(peerIdx int) {
@@ -128,5 +128,5 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 
 	rf.lastSnapshotIndex = args.LastIncludedIndex
 	rf.lastSnapshotTerm = args.LastIncludedTerm
-	rf.persister.SaveStateAndSnapshot(rf.getPersistData(), args.Data)
+	rf.persister.SaveStateAndSnapshot(rf.getPersistState(), args.Data)
 }

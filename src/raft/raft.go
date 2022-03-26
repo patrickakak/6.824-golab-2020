@@ -106,7 +106,7 @@ func (rf *Raft) GetState() (int, bool) {
 	return rf.term, rf.role == Leader
 }
 
-func (rf *Raft) getPersistData() []byte {
+func (rf *Raft) getPersistState() []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 	e.Encode(rf.term)
@@ -125,8 +125,8 @@ func (rf *Raft) getPersistData() []byte {
 // see paper's Figure 2 for a description of what should be persistent.
 //
 func (rf *Raft) persist() {
-	data := rf.getPersistData()
-	rf.persister.SaveRaftState(data)
+	state := rf.getPersistState()
+	rf.persister.SaveRaftState(state)
 }
 
 //
