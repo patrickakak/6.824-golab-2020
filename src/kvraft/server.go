@@ -156,9 +156,9 @@ func (kv *KVServer) saveSnapshot(logIndex int) {
 		return
 	}
 	// need snapshot
-	data := kv.genSnapshotData()
+	snapshot := kv.genSnapshotData()
 	// use goroutine here might oversize the state size
-	kv.rf.SavePersistAndShnapshot(logIndex, data)
+	kv.rf.SavePersistSnapshot(logIndex, snapshot)
 }
 
 func (kv *KVServer) waitApplyCh() {
