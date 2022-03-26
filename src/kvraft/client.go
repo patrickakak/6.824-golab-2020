@@ -30,8 +30,8 @@ func nrand() int64 {
 func MakeClerk(servers []*labrpc.ClientEnd) *Clerk {
 	ck := new(Clerk)
 	ck.servers = servers
-	ck.clientId = nrand()
 	// You'll have to add code here.
+	ck.clientId = nrand()
 	return ck
 }
 
@@ -52,7 +52,11 @@ func (ck *Clerk) genMsgId() msgId {
 // arguments. and reply must be passed as a pointer.
 //
 func (ck *Clerk) Get(key string) string {
-	args := GetArgs{Key: key, MsgId: ck.genMsgId(), ClientId: ck.clientId}
+	args := GetArgs{}
+	args.Key = key
+	args.MsgId = ck.genMsgId()
+	args.ClientId = ck.clientId
+
 	leaderId := ck.leaderId
 	for {
 		reply := GetReply{}
@@ -69,12 +73,12 @@ func (ck *Clerk) Get(key string) string {
 		case ErrNoKey:
 			ck.leaderId = leaderId
 			return ""
-		case ErrTimeOut:
-			continue
-		default:
+		case ErrWrongLeader:
 			time.Sleep(ChangeLeaderInterval)
 			leaderId = (leaderId + 1) % len(ck.servers)
-			continue
+		case ErrTimeOut:
+		default:
+			log.Fatal("client err", reply.Err)
 		}
 	}
 }
@@ -110,16 +114,12 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 		switch reply.Err {
 		case OK:
 			return
-		case ErrNoKey:
-			log.Fatal("client putappend get err nokey")
 		case ErrWrongLeader:
 			time.Sleep(ChangeLeaderInterval)
 			leaderId = (leaderId + 1) % len(ck.servers)
-			continue
 		case ErrTimeOut:
-			continue
 		default:
-			log.Fatal("client unknown err", reply.Err)
+			log.Fatal("client err", reply.Err)
 		}
 	}
 }

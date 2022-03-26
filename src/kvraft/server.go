@@ -12,7 +12,7 @@ import (
 	"../raft"
 )
 
-const WaitCmdTimeOut = time.Millisecond * 500 // slow
+const WaitCmdTimeOut = time.Millisecond * 500
 
 type Op struct {
 	// Your definitions here.
@@ -39,24 +39,20 @@ type KVServer struct {
 	stopCh  chan struct{}
 
 	// Your definitions here.
-	msgNotify      map[int64]chan NotifyMsg
-	lastApplies    map[int64]msgId // last apply put/append msg
-	data           map[string]string
-	persister      *raft.Persister
-	lastApplyIndex int
-	lastApplyTerm  int
-	maxraftstate   int // snapshot if log grows this big
+	persister    *raft.Persister
+	data         map[string]string
+	msgNotify    map[int64]chan NotifyMsg
+	lastApplies  map[int64]msgId // last apply put/append msg
+	maxraftstate int             // snapshot if log grows this big
 }
 
 func (kv *KVServer) dataGet(key string) (err Err, val string) {
 	if v, ok := kv.data[key]; ok {
-		err = OK
-		val = v
-		return
+		err, val = OK, v
 	} else {
-		err = ErrNoKey
-		return
+		err, val = ErrNoKey, ""
 	}
+	return
 }
 
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
@@ -90,8 +86,8 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 
 func (kv *KVServer) removeCh(id int64) {
 	kv.mu.Lock()
+	defer kv.mu.Unlock()
 	delete(kv.msgNotify, id)
-	kv.mu.Unlock()
 }
 
 func (kv *KVServer) waitCmd(op Op) (res NotifyMsg) {
@@ -105,6 +101,7 @@ func (kv *KVServer) waitCmd(op Op) (res NotifyMsg) {
 	ch := make(chan NotifyMsg, 1)
 	kv.msgNotify[op.ReqId] = ch
 	kv.mu.Unlock()
+
 	t := time.NewTimer(WaitCmdTimeOut)
 	defer t.Stop()
 	select {
@@ -139,6 +136,29 @@ func (kv *KVServer) isRepeated(clientId int64, id msgId) bool {
 		return val == id
 	}
 	return false
+}
+
+func (kv *KVServer) genSnapshotData() []byte {
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	if err := e.Encode(kv.data); err != nil {
+		panic(err)
+	}
+	if err := e.Encode(kv.lastApplies); err != nil {
+		panic(err)
+	}
+	data := w.Bytes()
+	return data
+}
+
+func (kv *KVServer) saveSnapshot(logIndex int) {
+	if kv.maxraftstate == -1 || kv.persister.RaftStateSize() < kv.maxraftstate {
+		return
+	}
+	// need snapshot
+	data := kv.genSnapshotData()
+	// use goroutine here might oversize the state size
+	kv.rf.SavePersistAndShnapshot(logIndex, data)
 }
 
 func (kv *KVServer) waitApplyCh() {
@@ -185,29 +205,6 @@ func (kv *KVServer) waitApplyCh() {
 			kv.mu.Unlock()
 		}
 	}
-}
-
-func (kv *KVServer) saveSnapshot(logIndex int) {
-	if kv.maxraftstate == -1 || kv.persister.RaftStateSize() < kv.maxraftstate {
-		return
-	}
-	// need snapshot
-	data := kv.genSnapshotData()
-	// use goroutine here might oversize the state size
-	kv.rf.SavePersistAndShnapshot(logIndex, data)
-}
-
-func (kv *KVServer) genSnapshotData() []byte {
-	w := new(bytes.Buffer)
-	e := labgob.NewEncoder(w)
-	if err := e.Encode(kv.data); err != nil {
-		panic(err)
-	}
-	if err := e.Encode(kv.lastApplies); err != nil {
-		panic(err)
-	}
-	data := w.Bytes()
-	return data
 }
 
 func (kv *KVServer) readPersist(data []byte) {

@@ -24,7 +24,6 @@ func (rf *Raft) SavePersistAndShnapshot(logIndex int, snapshotData []byte) {
 	if logIndex <= rf.lastSnapshotIndex {
 		return
 	}
-
 	if logIndex > rf.commitIndex {
 		panic("logindex > rf.commitdex")
 	}
@@ -40,17 +39,16 @@ func (rf *Raft) SavePersistAndShnapshot(logIndex int, snapshotData []byte) {
 
 func (rf *Raft) sendInstallSnapshot(peerIdx int) {
 	rf.mu.Lock()
-	args := InstallSnapshotArgs{
-		Term:              rf.term,
-		LeaderId:          rf.me,
-		LastIncludedIndex: rf.lastSnapshotIndex,
-		LastIncludedTerm:  rf.lastSnapshotTerm,
-		Data:              rf.persister.ReadSnapshot(),
-	}
+	args := InstallSnapshotArgs{}
+	args.Term = rf.term
+	args.LeaderId = rf.me
+	args.LastIncludedIndex = rf.lastSnapshotIndex
+	args.LastIncludedTerm = rf.lastSnapshotTerm
+	args.Data = rf.persister.ReadSnapshot()
 	rf.mu.Unlock()
+
 	timer := time.NewTimer(RPCTimeout)
 	defer timer.Stop()
-
 	for {
 		timer.Stop()
 		timer.Reset(RPCTimeout)
@@ -114,7 +112,6 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		rf.resetElectionTimer()
 		defer rf.persist()
 	}
-
 	if rf.lastSnapshotIndex >= args.LastIncludedIndex {
 		return
 	}
