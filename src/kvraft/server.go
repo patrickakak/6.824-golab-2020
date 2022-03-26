@@ -32,18 +32,18 @@ type NotifyMsg struct {
 }
 
 type KVServer struct {
-	mu      sync.Mutex
-	me      int
-	rf      *raft.Raft
-	applyCh chan raft.ApplyMsg
-	stopCh  chan struct{}
+	mu           sync.Mutex
+	me           int
+	rf           *raft.Raft
+	applyCh      chan raft.ApplyMsg
+	stopCh       chan struct{}
+	maxraftstate int // snapshot if log grows this big
+	persister    *raft.Persister
 
 	// Your definitions here.
-	persister    *raft.Persister
-	data         map[string]string
-	msgNotify    map[int64]chan NotifyMsg
-	lastApplies  map[int64]msgId // last apply put/append msg
-	maxraftstate int             // snapshot if log grows this big
+	data        map[string]string
+	lastApplies map[int64]msgId // last apply put/append msg
+	msgNotify   map[int64]chan NotifyMsg
 }
 
 func (kv *KVServer) dataGet(key string) (err Err, val string) {
@@ -138,7 +138,7 @@ func (kv *KVServer) isRepeated(clientId int64, id msgId) bool {
 	return false
 }
 
-func (kv *KVServer) genSnapshotData() []byte {
+func (kv *KVServer) generateSnapshot() []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 	if err := e.Encode(kv.data); err != nil {
@@ -156,7 +156,7 @@ func (kv *KVServer) saveSnapshot(logIndex int) {
 		return
 	}
 	// need snapshot
-	snapshot := kv.genSnapshotData()
+	snapshot := kv.generateSnapshot()
 	// use goroutine here might oversize the state size
 	kv.rf.SavePersistSnapshot(logIndex, snapshot)
 }
@@ -218,8 +218,7 @@ func (kv *KVServer) readPersist(data []byte) {
 	var kvData map[string]string
 	var lastApplies map[int64]msgId
 
-	if d.Decode(&kvData) != nil ||
-		d.Decode(&lastApplies) != nil {
+	if d.Decode(&kvData) != nil || d.Decode(&lastApplies) != nil {
 		log.Fatal("kv read persist err")
 	} else {
 		kv.data = kvData
@@ -254,16 +253,12 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	// You may need initialization code here.
 	kv.data = make(map[string]string)
 	kv.lastApplies = make(map[int64]msgId)
+	kv.msgNotify = make(map[int64]chan NotifyMsg)
+	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.stopCh = make(chan struct{})
 	kv.readPersist(kv.persister.ReadSnapshot())
-
-	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
-	// You may need initialization code here.
-	kv.msgNotify = make(map[int64]chan NotifyMsg)
-
 	go kv.waitApplyCh()
-
 	return kv
 }
