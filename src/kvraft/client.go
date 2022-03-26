@@ -70,11 +70,9 @@ func (ck *Clerk) Get(key string) string {
 			ck.leaderId = leaderId
 			return ""
 		case ErrTimeOut:
-			continue
 		default:
 			time.Sleep(ChangeLeaderInterval)
 			leaderId = (leaderId + 1) % len(ck.servers)
-			continue
 		}
 	}
 }
@@ -115,9 +113,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 		case ErrWrongLeader:
 			time.Sleep(ChangeLeaderInterval)
 			leaderId = (leaderId + 1) % len(ck.servers)
-			continue
 		case ErrTimeOut:
-			continue
 		default:
 			log.Fatal("client unknown err", reply.Err)
 		}

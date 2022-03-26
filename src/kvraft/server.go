@@ -12,7 +12,7 @@ import (
 	"../raft"
 )
 
-const WaitCmdTimeOut = time.Millisecond * 500 // slow
+const WaitCmdTimeOut = time.Millisecond * 500
 
 type Op struct {
 	// Your definitions here.
