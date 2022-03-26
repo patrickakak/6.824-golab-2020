@@ -1,20 +1,21 @@
 package kvraft
 
-import "../labrpc"
-import "testing"
-import "os"
+import (
+	crand "crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"math/big"
+	"math/rand"
+	"os"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
 
-// import "log"
-import crand "crypto/rand"
-import "math/big"
-import "math/rand"
-import "encoding/base64"
-import "sync"
-import "runtime"
-import "../raft"
-import "fmt"
-import "time"
-import "sync/atomic"
+	"../labrpc"
+	"../raft"
+)
 
 func randstring(n int) string {
 	b := make([]byte, 2*n)
@@ -105,8 +106,6 @@ func (cfg *config) SnapshotSize() int {
 // attach server i to servers listed in to
 // caller must hold cfg.mu
 func (cfg *config) connectUnlocked(i int, to []int) {
-	// log.Printf("connect peer %d to %v\n", i, to)
-
 	// outgoing socket files
 	for j := 0; j < len(to); j++ {
 		endname := cfg.endnames[i][to[j]]
@@ -129,8 +128,6 @@ func (cfg *config) connect(i int, to []int) {
 // detach server i from the servers listed in from
 // caller must hold cfg.mu
 func (cfg *config) disconnectUnlocked(i int, from []int) {
-	// log.Printf("disconnect peer %d from %v\n", i, from)
-
 	// outgoing socket files
 	for j := 0; j < len(from); j++ {
 		if cfg.endnames[i] != nil {
@@ -221,7 +218,6 @@ func (cfg *config) deleteClient(ck *Clerk) {
 
 // caller should hold cfg.mu
 func (cfg *config) ConnectClientUnlocked(ck *Clerk, to []int) {
-	// log.Printf("ConnectClient %v to %v\n", ck, to)
 	endnames := cfg.clerks[ck]
 	for j := 0; j < len(to); j++ {
 		s := endnames[to[j]]
@@ -237,7 +233,6 @@ func (cfg *config) ConnectClient(ck *Clerk, to []int) {
 
 // caller should hold cfg.mu
 func (cfg *config) DisconnectClientUnlocked(ck *Clerk, from []int) {
-	// log.Printf("DisconnectClient %v from %v\n", ck, from)
 	endnames := cfg.clerks[ck]
 	for j := 0; j < len(from); j++ {
 		s := endnames[from[j]]
@@ -413,7 +408,7 @@ func (cfg *config) op() {
 // and some performance numbers.
 func (cfg *config) end() {
 	cfg.checkTimeout()
-	if cfg.t.Failed() == false {
+	if !cfg.t.Failed() {
 		t := time.Since(cfg.t0).Seconds()  // real time
 		npeers := cfg.n                    // number of Raft peers
 		nrpc := cfg.rpcTotal() - cfg.rpcs0 // number of RPC sends
