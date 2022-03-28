@@ -223,7 +223,6 @@ func (sm *ShardMaster) move(args MoveArgs) {
 	config.Num += 1
 	config.Shards[args.Shard] = args.GID
 	sm.configs = append(sm.configs, config)
-
 }
 
 func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
