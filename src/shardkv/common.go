@@ -39,7 +39,6 @@ type PutAppendArgs struct {
 	Key   string
 	Value string
 	Op    string // "Put" or "Append"
-
 	// You'll have to add definitions here.
 	// Field names must start with capital letters,
 	// otherwise RPC will break.
@@ -49,15 +48,14 @@ type PutAppendArgs struct {
 }
 
 func (c *PutAppendArgs) copy() PutAppendArgs {
-	r := PutAppendArgs{
-		Key:       c.Key,
-		Value:     c.Value,
-		Op:        c.Op,
-		ClientId:  c.ClientId,
-		MsgId:     c.MsgId,
-		ConfigNum: c.ConfigNum,
-	}
-	return r
+	res := PutAppendArgs{}
+	res.Key = c.Key
+	res.Value = c.Value
+	res.Op = c.Op
+	res.ClientId = c.ClientId
+	res.MsgId = c.MsgId
+	res.ConfigNum = c.ConfigNum
+	return res
 }
 
 type PutAppendReply struct {
@@ -65,20 +63,20 @@ type PutAppendReply struct {
 }
 
 type GetArgs struct {
-	Key       string
+	Key string
+	// You'll have to add definitions here.
 	ClientId  int64
 	MsgId     int64
 	ConfigNum int
 }
 
 func (c *GetArgs) copy() GetArgs {
-	r := GetArgs{
-		Key:       c.Key,
-		ClientId:  c.ClientId,
-		MsgId:     c.MsgId,
-		ConfigNum: c.ConfigNum,
-	}
-	return r
+	res := GetArgs{}
+	res.Key = c.Key
+	res.ClientId = c.ClientId
+	res.MsgId = c.MsgId
+	res.ConfigNum = c.ConfigNum
+	return res
 }
 
 type GetReply struct {
@@ -98,11 +96,10 @@ type FetchShardDataReply struct {
 }
 
 func (reply *FetchShardDataReply) Copy() FetchShardDataReply {
-	res := FetchShardDataReply{
-		Success:    reply.Success,
-		Data:       make(map[string]string),
-		MsgIndexes: make(map[int64]int64),
-	}
+	res := FetchShardDataReply{}
+	res.Success = reply.Success
+	res.Data = make(map[string]string)
+	res.MsgIndexes = make(map[int64]int64)
 	for k, v := range reply.Data {
 		res.Data[k] = v
 	}

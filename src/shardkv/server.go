@@ -31,20 +31,18 @@ type ShardKV struct {
 	maxraftstate int // snapshot if log grows this big
 
 	// Your definitions here.
-	config        shardmaster.Config // the latest config
-	oldConfig     shardmaster.Config
-	notifyCh      map[int64]chan NotifyMsg             // notify cmd done
-	lastMsgIdx    [shardmaster.NShards]map[int64]int64 // clientId -> msgId map
-	ownShards     map[int]bool
-	data          [shardmaster.NShards]map[string]string // kv per shard
-	waitShardIds  map[int]bool
-	historyShards map[int]map[int]MergeShardData // configNum -> shard -> data
-	mck           *shardmaster.Clerk
-
-	dead      int32 // for stop
-	stopCh    chan struct{}
-	persister *raft.Persister
-
+	oldConfig       shardmaster.Config
+	config          shardmaster.Config                     // the latest config
+	notifyCh        map[int64]chan NotifyMsg               // notify cmd done
+	lastMsgIdx      [shardmaster.NShards]map[int64]int64   // clientId -> msgId map
+	data            [shardmaster.NShards]map[string]string // kv per shard
+	historyShards   map[int]map[int]MergeShardData         // configNum -> shard -> data
+	ownShards       map[int]bool
+	waitShardIds    map[int]bool
+	mck             *shardmaster.Clerk
+	dead            int32
+	stopCh          chan struct{}
+	persister       *raft.Persister
 	pullConfigTimer *time.Timer
 	pullShardsTimer *time.Timer
 }
@@ -72,12 +70,9 @@ func (kv *ShardKV) genSnapshotData() []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 
-	if e.Encode(kv.data) != nil ||
-		e.Encode(kv.lastMsgIdx) != nil ||
-		e.Encode(kv.waitShardIds) != nil ||
-		e.Encode(kv.historyShards) != nil ||
-		e.Encode(kv.config) != nil ||
-		e.Encode(kv.oldConfig) != nil ||
+	if e.Encode(kv.data) != nil || e.Encode(kv.lastMsgIdx) != nil ||
+		e.Encode(kv.waitShardIds) != nil || e.Encode(kv.historyShards) != nil ||
+		e.Encode(kv.config) != nil || e.Encode(kv.oldConfig) != nil ||
 		e.Encode(kv.ownShards) != nil {
 		panic("gen snapshot data encode err")
 	}
@@ -87,7 +82,7 @@ func (kv *ShardKV) genSnapshotData() []byte {
 }
 
 func (kv *ShardKV) readSnapShotData(data []byte) {
-	if data == nil || len(data) < 1 { // bootstrap without any state?
+	if data == nil || len(data) < 1 {
 		return
 	}
 
@@ -102,12 +97,9 @@ func (kv *ShardKV) readSnapShotData(data []byte) {
 	var oldConfig shardmaster.Config
 	var ownShards map[int]bool
 
-	if d.Decode(&kvData) != nil ||
-		d.Decode(&lastMsgIdx) != nil ||
-		d.Decode(&waitShardIds) != nil ||
-		d.Decode(&historyShards) != nil ||
-		d.Decode(&config) != nil ||
-		d.Decode(&oldConfig) != nil ||
+	if d.Decode(&kvData) != nil || d.Decode(&lastMsgIdx) != nil ||
+		d.Decode(&waitShardIds) != nil || d.Decode(&historyShards) != nil ||
+		d.Decode(&config) != nil || d.Decode(&oldConfig) != nil ||
 		d.Decode(&ownShards) != nil {
 		log.Fatal("kv read persist err")
 	} else {
@@ -142,10 +134,10 @@ func (kv *ShardKV) configReady(configNum int, key string) Err {
 // turn off debug output from this instance.
 //
 func (kv *ShardKV) Kill() {
-	atomic.StoreInt32(&kv.dead, 1)
 	kv.rf.Kill()
-	close(kv.stopCh)
 	// Your code here, if desired.
+	atomic.StoreInt32(&kv.dead, 1)
+	close(kv.stopCh)
 }
 
 func (kv *ShardKV) killed() bool {
@@ -230,12 +222,9 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 
 	// Use something like this to talk to the shardmaster:
 	kv.mck = shardmaster.MakeClerk(kv.masters)
-
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.stopCh = make(chan struct{})
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
-
-	// You may need initialization code here.
 	kv.data = [shardmaster.NShards]map[string]string{}
 	for i := range kv.data {
 		kv.data[i] = make(map[string]string)
@@ -244,18 +233,15 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 	for i := range kv.lastMsgIdx {
 		kv.lastMsgIdx[i] = make(map[int64]int64)
 	}
-
 	kv.waitShardIds = make(map[int]bool)
 	kv.historyShards = make(map[int]map[int]MergeShardData)
-	config := shardmaster.Config{
-		Num:    0,
-		Shards: [shardmaster.NShards]int{},
-		Groups: map[int][]string{},
-	}
+	config := shardmaster.Config{}
+	config.Num = 0
+	config.Shards = [shardmaster.NShards]int{}
+	config.Groups = map[int][]string{}
 	kv.config = config
 	kv.oldConfig = config
 	kv.readSnapShotData(kv.persister.ReadSnapshot())
-
 	kv.notifyCh = make(map[int64]chan NotifyMsg)
 	kv.pullConfigTimer = time.NewTimer(PullConfigInterval)
 	kv.pullShardsTimer = time.NewTimer(PullShardsInterval)
