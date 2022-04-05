@@ -134,7 +134,7 @@ func (kv *ShardKV) pullShard(shardId int, config shardmaster.Config) {
 			if reply.Success {
 				kv.mu.Lock()
 				if _, ok = kv.waitShardIds[shardId]; ok && kv.config.Num == config.Num+1 {
-					replyCopy := reply.Copy()
+					replyCopy := reply.copy()
 					mergeArgs := MergeShardData{}
 					mergeArgs.ConfigNum = args.ConfigNum
 					mergeArgs.ShardNum = args.ShardNum

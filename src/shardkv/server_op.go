@@ -5,12 +5,9 @@ import (
 )
 
 type Op struct {
-	// Your definitions here.
-	// Field names must start with capital letters,
-	// otherwise RPC will break.
 	Key       string
 	Value     string
-	Op        string // "Put" or "Append" Get,
+	Op        string
 	ClientId  int64
 	MsgId     int64
 	ReqId     int64
@@ -30,6 +27,7 @@ func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) {
 	op.Op = "Get"
 	op.ClientId = args.ClientId
 	op.ConfigNum = args.ConfigNum
+
 	res := kv.waitCmd(op)
 	reply.Err = res.Err
 	reply.Value = res.Value
@@ -44,6 +42,7 @@ func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	op.Op = args.Op
 	op.ClientId = args.ClientId
 	op.ConfigNum = args.ConfigNum
+
 	reply.Err = kv.waitCmd(op).Err
 }
 

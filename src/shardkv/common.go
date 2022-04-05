@@ -47,6 +47,10 @@ type PutAppendArgs struct {
 	ConfigNum int
 }
 
+type PutAppendReply struct {
+	Err Err
+}
+
 func (c *PutAppendArgs) copy() PutAppendArgs {
 	res := PutAppendArgs{}
 	res.Key = c.Key
@@ -58,16 +62,16 @@ func (c *PutAppendArgs) copy() PutAppendArgs {
 	return res
 }
 
-type PutAppendReply struct {
-	Err Err
-}
-
 type GetArgs struct {
-	Key string
-	// You'll have to add definitions here.
+	Key       string
 	ClientId  int64
 	MsgId     int64
 	ConfigNum int
+}
+
+type GetReply struct {
+	Err   Err
+	Value string
 }
 
 func (c *GetArgs) copy() GetArgs {
@@ -77,11 +81,6 @@ func (c *GetArgs) copy() GetArgs {
 	res.MsgId = c.MsgId
 	res.ConfigNum = c.ConfigNum
 	return res
-}
-
-type GetReply struct {
-	Err   Err
-	Value string
 }
 
 type FetchShardDataArgs struct {
@@ -95,7 +94,7 @@ type FetchShardDataReply struct {
 	Data       map[string]string
 }
 
-func (reply *FetchShardDataReply) Copy() FetchShardDataReply {
+func (reply *FetchShardDataReply) copy() FetchShardDataReply {
 	res := FetchShardDataReply{}
 	res.Success = reply.Success
 	res.Data = make(map[string]string)
