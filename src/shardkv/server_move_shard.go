@@ -65,10 +65,9 @@ func (kv *ShardKV) CleanShardData(args *CleanShardDataArgs, reply *CleanShardDat
 
 func (kv *ShardKV) reqCleanShardData(config shardmaster.Config, shardId int) {
 	configNum := config.Num
-	args := &CleanShardDataArgs{
-		ConfigNum: configNum,
-		ShardNum:  shardId,
-	}
+	args := &CleanShardDataArgs{}
+	args.ConfigNum = configNum
+	args.ShardNum = shardId
 
 	t := time.NewTimer(ReqCleanShardDataTimeOut)
 	defer t.Stop()
@@ -124,10 +123,9 @@ func (kv *ShardKV) pullShards() {
 }
 
 func (kv *ShardKV) pullShard(shardId int, config shardmaster.Config) {
-	args := FetchShardDataArgs{
-		ConfigNum: config.Num,
-		ShardNum:  shardId,
-	}
+	args := FetchShardDataArgs{}
+	args.ConfigNum = config.Num
+	args.ShardNum = shardId
 
 	for _, s := range config.Groups[config.Shards[shardId]] {
 		srv := kv.make_end(s)
@@ -137,12 +135,11 @@ func (kv *ShardKV) pullShard(shardId int, config shardmaster.Config) {
 				kv.mu.Lock()
 				if _, ok = kv.waitShardIds[shardId]; ok && kv.config.Num == config.Num+1 {
 					replyCopy := reply.Copy()
-					mergeArgs := MergeShardData{
-						ConfigNum:  args.ConfigNum,
-						ShardNum:   args.ShardNum,
-						Data:       replyCopy.Data,
-						MsgIndexes: replyCopy.MsgIndexes,
-					}
+					mergeArgs := MergeShardData{}
+					mergeArgs.ConfigNum = args.ConfigNum
+					mergeArgs.ShardNum = args.ShardNum
+					mergeArgs.Data = replyCopy.Data
+					mergeArgs.MsgIndexes = replyCopy.MsgIndexes
 					kv.mu.Unlock()
 					_, _, isLeader := kv.rf.Start(mergeArgs)
 					if !isLeader {

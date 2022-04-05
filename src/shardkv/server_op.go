@@ -23,29 +23,27 @@ type NotifyMsg struct {
 }
 
 func (kv *ShardKV) Get(args *GetArgs, reply *GetReply) {
-	op := Op{
-		MsgId:     args.MsgId,
-		ReqId:     nrand(),
-		Key:       args.Key,
-		Op:        "Get",
-		ClientId:  args.ClientId,
-		ConfigNum: args.ConfigNum,
-	}
+	op := Op{}
+	op.MsgId = args.MsgId
+	op.ReqId = nrand()
+	op.Key = args.Key
+	op.Op = "Get"
+	op.ClientId = args.ClientId
+	op.ConfigNum = args.ConfigNum
 	res := kv.waitCmd(op)
 	reply.Err = res.Err
 	reply.Value = res.Value
 }
 
 func (kv *ShardKV) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	op := Op{
-		MsgId:     args.MsgId,
-		ReqId:     nrand(),
-		Key:       args.Key,
-		Value:     args.Value,
-		Op:        args.Op,
-		ClientId:  args.ClientId,
-		ConfigNum: args.ConfigNum,
-	}
+	op := Op{}
+	op.MsgId = args.MsgId
+	op.ReqId = nrand()
+	op.Key = args.Key
+	op.Value = args.Value
+	op.Op = args.Op
+	op.ClientId = args.ClientId
+	op.ConfigNum = args.ConfigNum
 	reply.Err = kv.waitCmd(op).Err
 }
 
