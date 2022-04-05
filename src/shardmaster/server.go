@@ -73,48 +73,44 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 		lastGid := 0
 
 	LOOP:
-		var keys []int
-		for k := range config.Groups {
-			keys = append(keys, k)
+		var gids []int
+		for gid := range config.Groups {
+			gids = append(gids, gid)
 		}
-		sort.Ints(keys)
-		for _, gid := range keys {
+		sort.Ints(gids)
+		for _, gid := range gids {
 			lastGid = gid
 			count := 0
-			// count existed first
 			for _, val := range config.Shards {
 				if val == gid {
 					count += 1
 				}
 			}
-			// whether need to change
 			if count == avg {
 				continue
 			} else if count > avg {
 				if remainderShardsCnt == 0 {
-					// cut down to avg
-					c := 0
+					cnt := 0
 					for i, val := range config.Shards {
 						if val == gid {
-							if c == avg {
+							if cnt == avg {
 								config.Shards[i] = 0
 							} else {
-								c += 1
+								cnt += 1
 							}
 						}
 					}
 				} else if remainderShardsCnt > 0 {
-					// cut down until remainderShardsCnt is 0
-					c := 0
+					cnt := 0
 					for i, val := range config.Shards {
 						if val == gid {
-							if c == avg+remainderShardsCnt {
+							if cnt == avg+remainderShardsCnt {
 								config.Shards[i] = 0
 							} else {
-								if c == avg {
+								if cnt == avg {
 									remainderShardsCnt -= 1
 								} else {
-									c += 1
+									cnt += 1
 								}
 							}
 						}
@@ -146,8 +142,7 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 			}
 		}
 	} else {
-		// len(config.Groups) > NShards
-		// every gid gets at most one, spare gid available
+		// every gid gets at most one, some group may be idle
 		gids := make(map[int]int)
 		emptyShards := make([]int, 0, NShards)
 		for i, gid := range config.Shards {
