@@ -56,17 +56,51 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) {
 	reply.Err, reply.WrongLeader = res.Err, res.WrongLeader
 }
 
+func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
+	// Your code here.
+	sm.mu.Lock()
+	if args.Num > 0 && args.Num < len(sm.configs) {
+		reply.Err = OK
+		reply.WrongLeader = false
+		reply.Config = sm.getConfigByIndex(args.Num)
+		sm.mu.Unlock()
+		return
+	}
+	sm.mu.Unlock()
+
+	res := sm.runCmd("Query", args.MsgId, args.ClientId, *args)
+	reply.Err, reply.WrongLeader, reply.Config = res.Err, res.WrongLeader, res.Config
+}
+
+func (sm *ShardMaster) getConfigByIndex(idx int) Config {
+	if idx < 0 || idx >= len(sm.configs) {
+		return sm.configs[len(sm.configs)-1].Copy()
+	} else {
+		return sm.configs[idx].Copy()
+	}
+}
+
+func (sm *ShardMaster) runCmd(method string, mid msgId, clientId int64, args interface{}) NotifyMsg {
+	op := Op{}
+	op.MsgId = mid
+	op.ReqId = nrand()
+	op.Args = args
+	op.Method = method
+	op.ClientId = clientId
+	return sm.waitCmd(op)
+}
+
 func (sm *ShardMaster) adjustConfig(config *Config) {
 	if len(config.Groups) == 0 {
 		config.Shards = [NShards]int{}
 	} else if len(config.Groups) == 1 {
-		// set shards one gid
 		for k := range config.Groups {
 			for i := range config.Shards {
 				config.Shards[i] = k
 			}
 		}
 	} else if len(config.Groups) <= NShards {
+		// every group gets avg shards, remainder shards goes to last group
 		avg := NShards / len(config.Groups)
 		remainderShardsCnt := NShards - avg*len(config.Groups)
 		needLoop := false
@@ -209,40 +243,6 @@ func (sm *ShardMaster) move(args MoveArgs) {
 	sm.configs = append(sm.configs, config)
 }
 
-func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
-	// Your code here.
-	sm.mu.Lock()
-	if args.Num > 0 && args.Num < len(sm.configs) {
-		reply.Err = OK
-		reply.WrongLeader = false
-		reply.Config = sm.getConfigByIndex(args.Num)
-		sm.mu.Unlock()
-		return
-	}
-	sm.mu.Unlock()
-
-	res := sm.runCmd("Query", args.MsgId, args.ClientId, *args)
-	reply.Err, reply.WrongLeader, reply.Config = res.Err, res.WrongLeader, res.Config
-}
-
-func (sm *ShardMaster) getConfigByIndex(idx int) Config {
-	if idx < 0 || idx >= len(sm.configs) {
-		return sm.configs[len(sm.configs)-1].Copy()
-	} else {
-		return sm.configs[idx].Copy()
-	}
-}
-
-func (sm *ShardMaster) runCmd(method string, mid msgId, clientId int64, args interface{}) NotifyMsg {
-	op := Op{}
-	op.MsgId = mid
-	op.ReqId = nrand()
-	op.Args = args
-	op.Method = method
-	op.ClientId = clientId
-	return sm.waitCmd(op)
-}
-
 func (sm *ShardMaster) waitCmd(op Op) (res NotifyMsg) {
 	_, _, isLeader := sm.rf.Start(op)
 	if !isLeader {
@@ -298,38 +298,37 @@ func (sm *ShardMaster) apply() {
 		case <-sm.stopCh:
 			return
 		case msg := <-sm.applyCh:
-			if !msg.CommandValid {
-				continue
-			}
-			op := msg.Command.(Op)
+			if msg.CommandValid {
+				op := msg.Command.(Op)
 
-			sm.mu.Lock()
-			isRepeated := sm.isRepeated(op.ClientId, op.MsgId)
-			if !isRepeated {
-				switch op.Method {
-				case "Join":
-					sm.join(op.Args.(JoinArgs))
-				case "Leave":
-					sm.leave(op.Args.(LeaveArgs))
-				case "Move":
-					sm.move(op.Args.(MoveArgs))
-				case "Query":
-				default:
-					panic("unknown method")
+				sm.mu.Lock()
+				isRepeated := sm.isRepeated(op.ClientId, op.MsgId)
+				if !isRepeated {
+					switch op.Method {
+					case "Join":
+						sm.join(op.Args.(JoinArgs))
+					case "Leave":
+						sm.leave(op.Args.(LeaveArgs))
+					case "Move":
+						sm.move(op.Args.(MoveArgs))
+					case "Query":
+					default:
+						panic("unknown method")
+					}
 				}
+				res := NotifyMsg{}
+				res.Err = OK
+				res.WrongLeader = false
+				if op.Method != "Query" {
+					sm.lastApplies[op.ClientId] = op.MsgId
+				} else {
+					res.Config = sm.getConfigByIndex(op.Args.(QueryArgs).Num)
+				}
+				if ch, ok := sm.msgNotify[op.ReqId]; ok {
+					ch <- res
+				}
+				sm.mu.Unlock()
 			}
-			res := NotifyMsg{}
-			res.Err = OK
-			res.WrongLeader = false
-			if op.Method != "Query" {
-				sm.lastApplies[op.ClientId] = op.MsgId
-			} else {
-				res.Config = sm.getConfigByIndex(op.Args.(QueryArgs).Num)
-			}
-			if ch, ok := sm.msgNotify[op.ReqId]; ok {
-				ch <- res
-			}
-			sm.mu.Unlock()
 		}
 	}
 }
