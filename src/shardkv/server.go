@@ -61,12 +61,11 @@ func (kv *ShardKV) saveSnapshot(logIndex int) {
 	if kv.persister.RaftStateSize() < kv.maxraftstate {
 		return
 	}
-	// need snapshot
-	data := kv.genSnapshotData()
-	kv.rf.SavePersistSnapshot(logIndex, data)
+	snapshot := kv.genSnapshot()
+	kv.rf.SavePersistSnapshot(logIndex, snapshot)
 }
 
-func (kv *ShardKV) genSnapshotData() []byte {
+func (kv *ShardKV) genSnapshot() []byte {
 	w := new(bytes.Buffer)
 	e := labgob.NewEncoder(w)
 
@@ -219,8 +218,6 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 
 	// Your initialization code here.
 	kv.persister = persister
-
-	// Use something like this to talk to the shardmaster:
 	kv.mck = shardmaster.MakeClerk(kv.masters)
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.stopCh = make(chan struct{})
@@ -239,8 +236,8 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 	config.Num = 0
 	config.Shards = [shardmaster.NShards]int{}
 	config.Groups = map[int][]string{}
-	kv.config = config
 	kv.oldConfig = config
+	kv.config = config
 	kv.readSnapShotData(kv.persister.ReadSnapshot())
 	kv.notifyCh = make(map[int64]chan NotifyMsg)
 	kv.pullConfigTimer = time.NewTimer(PullConfigInterval)
