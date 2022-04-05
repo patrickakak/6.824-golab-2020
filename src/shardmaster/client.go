@@ -39,10 +39,11 @@ func (ck *Clerk) genMsgId() msgId {
 
 func (ck *Clerk) Query(num int) Config {
 	args := &QueryArgs{}
+	args.Num = num
 	// Your code here.
 	args.MsgId = ck.genMsgId()
 	args.ClientId = ck.clientId
-	args.Num = num
+
 	for {
 		// try each known server.
 		for _, srv := range ck.servers {
@@ -58,12 +59,11 @@ func (ck *Clerk) Query(num int) Config {
 
 func (ck *Clerk) Join(servers map[int][]string) {
 	args := &JoinArgs{}
-	// Your code here.
+	args.Servers = servers
 	args.MsgId = ck.genMsgId()
 	args.ClientId = ck.clientId
-	args.Servers = servers
+
 	for {
-		// try each known server.
 		for _, srv := range ck.servers {
 			var reply JoinReply
 			ok := srv.Call("ShardMaster.Join", args, &reply)
@@ -77,12 +77,11 @@ func (ck *Clerk) Join(servers map[int][]string) {
 
 func (ck *Clerk) Leave(gids []int) {
 	args := &LeaveArgs{}
-	// Your code here.
+	args.GIDs = gids
 	args.MsgId = ck.genMsgId()
 	args.ClientId = ck.clientId
-	args.GIDs = gids
+
 	for {
-		// try each known server.
 		for _, srv := range ck.servers {
 			var reply LeaveReply
 			ok := srv.Call("ShardMaster.Leave", args, &reply)
@@ -96,13 +95,12 @@ func (ck *Clerk) Leave(gids []int) {
 
 func (ck *Clerk) Move(shard int, gid int) {
 	args := &MoveArgs{}
-	// Your code here.
-	args.MsgId = ck.genMsgId()
-	args.ClientId = ck.clientId
 	args.Shard = shard
 	args.GID = gid
+	args.MsgId = ck.genMsgId()
+	args.ClientId = ck.clientId
+
 	for {
-		// try each known server.
 		for _, srv := range ck.servers {
 			var reply MoveReply
 			ok := srv.Call("ShardMaster.Move", args, &reply)
