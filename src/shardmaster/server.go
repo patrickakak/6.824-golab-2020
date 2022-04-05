@@ -68,8 +68,7 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 		}
 	} else if len(config.Groups) <= NShards {
 		avg := NShards / len(config.Groups)
-		// every gid gets avg shards
-		otherShardsCount := NShards - avg*len(config.Groups)
+		remainderShardsCnt := NShards - avg*len(config.Groups)
 		needLoop := false
 		lastGid := 0
 
@@ -91,37 +90,37 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 			// whether need to change
 			if count == avg {
 				continue
-			} else if count > avg && otherShardsCount == 0 {
-				// cut down to avg
-				c := 0
-				for i, val := range config.Shards {
-					if val == gid {
-						if c == avg {
-							config.Shards[i] = 0
-						} else {
-							c += 1
-						}
-					}
-				}
-			} else if count > avg && otherShardsCount > 0 {
-				// cut down until othersShardsCount is 0
-				// if count > avg, set to 0
-				c := 0
-				for i, val := range config.Shards {
-					if val == gid {
-						if c == avg+otherShardsCount {
-							config.Shards[i] = 0
-						} else {
+			} else if count > avg {
+				if remainderShardsCnt == 0 {
+					// cut down to avg
+					c := 0
+					for i, val := range config.Shards {
+						if val == gid {
 							if c == avg {
-								otherShardsCount -= 1
+								config.Shards[i] = 0
 							} else {
 								c += 1
 							}
 						}
 					}
+				} else if remainderShardsCnt > 0 {
+					// cut down until remainderShardsCnt is 0
+					c := 0
+					for i, val := range config.Shards {
+						if val == gid {
+							if c == avg+remainderShardsCnt {
+								config.Shards[i] = 0
+							} else {
+								if c == avg {
+									remainderShardsCnt -= 1
+								} else {
+									c += 1
+								}
+							}
+						}
+					}
 				}
 			} else {
-				// count < avg
 				for i, val := range config.Shards {
 					if count == avg {
 						break
