@@ -62,7 +62,6 @@ func (ck *Clerk) Join(servers map[int][]string) {
 	args.MsgId = ck.genMsgId()
 	args.ClientId = ck.clientId
 	args.Servers = servers
-
 	for {
 		// try each known server.
 		for _, srv := range ck.servers {
@@ -82,7 +81,6 @@ func (ck *Clerk) Leave(gids []int) {
 	args.MsgId = ck.genMsgId()
 	args.ClientId = ck.clientId
 	args.GIDs = gids
-
 	for {
 		// try each known server.
 		for _, srv := range ck.servers {
@@ -103,7 +101,6 @@ func (ck *Clerk) Move(shard int, gid int) {
 	args.ClientId = ck.clientId
 	args.Shard = shard
 	args.GID = gid
-
 	for {
 		// try each known server.
 		for _, srv := range ck.servers {
