@@ -23,12 +23,12 @@ type ShardMaster struct {
 	me      int
 	rf      *raft.Raft
 	applyCh chan raft.ApplyMsg
-	stopCh  chan struct{}
 
 	// Your data here.
-	msgNotify   map[int64]chan NotifyMsg
-	lastApplies map[int64]msgId // last apply put/append msg
 	configs     []Config        // indexed by config num
+	lastApplies map[int64]msgId // last apply put/append msg
+	msgNotify   map[int64]chan NotifyMsg
+	stopCh      chan struct{}
 }
 
 type Op struct {
@@ -90,7 +90,6 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 					count += 1
 				}
 			}
-
 			// whether need to change
 			if count == avg {
 				continue
@@ -106,7 +105,6 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 						}
 					}
 				}
-
 			} else if count > avg && otherShardsCount > 0 {
 				// cut down until othersShardsCount is 0
 				// if count > avg, set to 0
@@ -134,18 +132,15 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 						config.Shards[i] = gid
 					}
 				}
-
 				if count < avg {
 					needLoop = true
 				}
 			}
 		}
-
 		if needLoop {
 			needLoop = false
 			goto LOOP
 		}
-
 		if lastGid != 0 {
 			for i, val := range config.Shards {
 				if val == 0 {
@@ -193,11 +188,9 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 func (sm *ShardMaster) join(args JoinArgs) {
 	config := sm.getConfigByIndex(-1)
 	config.Num += 1
-
 	for k, v := range args.Servers {
 		config.Groups[k] = v
 	}
-
 	sm.adjustConfig(&config)
 	sm.configs = append(sm.configs, config)
 }
@@ -205,7 +198,6 @@ func (sm *ShardMaster) join(args JoinArgs) {
 func (sm *ShardMaster) leave(args LeaveArgs) {
 	config := sm.getConfigByIndex(-1)
 	config.Num += 1
-
 	for _, gid := range args.GIDs {
 		delete(config.Groups, gid)
 		for i, v := range config.Shards {
@@ -238,9 +230,7 @@ func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
 	sm.mu.Unlock()
 
 	res := sm.runCmd("Query", args.MsgId, args.ClientId, *args)
-	reply.Err = res.Err
-	reply.WrongLeader = res.WrongLeader
-	reply.Config = res.Config
+	reply.Err, reply.WrongLeader, reply.Config = res.Err, res.WrongLeader, res.Config
 }
 
 func (sm *ShardMaster) getConfigByIndex(idx int) Config {
@@ -251,16 +241,14 @@ func (sm *ShardMaster) getConfigByIndex(idx int) Config {
 	}
 }
 
-func (sm *ShardMaster) runCmd(method string, id msgId, clientId int64, args interface{}) (res NotifyMsg) {
-	op := Op{
-		MsgId:    id,
-		ReqId:    nrand(),
-		Args:     args,
-		Method:   method,
-		ClientId: clientId,
-	}
-	res = sm.waitCmd(op)
-	return
+func (sm *ShardMaster) runCmd(method string, mid msgId, clientId int64, args interface{}) NotifyMsg {
+	op := Op{}
+	op.MsgId = mid
+	op.ReqId = nrand()
+	op.Args = args
+	op.Method = method
+	op.ClientId = clientId
+	return sm.waitCmd(op)
 }
 
 func (sm *ShardMaster) waitCmd(op Op) (res NotifyMsg) {
@@ -297,8 +285,8 @@ func (sm *ShardMaster) waitCmd(op Op) (res NotifyMsg) {
 //
 func (sm *ShardMaster) Kill() {
 	sm.rf.Kill()
-	close(sm.stopCh)
 	// Your code here, if desired.
+	close(sm.stopCh)
 }
 
 // needed by shardkv tester
@@ -338,10 +326,9 @@ func (sm *ShardMaster) apply() {
 					panic("unknown method")
 				}
 			}
-			res := NotifyMsg{
-				Err:         OK,
-				WrongLeader: false,
-			}
+			res := NotifyMsg{}
+			res.Err = OK
+			res.WrongLeader = false
 			if op.Method != "Query" {
 				sm.lastApplies[op.ClientId] = op.MsgId
 			} else {
@@ -369,20 +356,21 @@ func (sm *ShardMaster) isRepeated(clientId int64, id msgId) bool {
 // me is the index of the current server in servers[].
 //
 func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister) *ShardMaster {
-	labgob.Register(Op{})
-
 	sm := new(ShardMaster)
 	sm.me = me
 
 	sm.configs = make([]Config, 1)
 	sm.configs[0].Groups = map[int][]string{}
+
+	labgob.Register(Op{})
 	sm.applyCh = make(chan raft.ApplyMsg, 100)
-	sm.stopCh = make(chan struct{})
 	sm.rf = raft.Make(servers, me, persister, sm.applyCh)
-	sm.lastApplies = make(map[int64]msgId)
-	sm.msgNotify = make(map[int64]chan NotifyMsg)
 
 	// Your code here.
+	sm.lastApplies = make(map[int64]msgId)
+	sm.msgNotify = make(map[int64]chan NotifyMsg)
+	sm.stopCh = make(chan struct{})
+
 	go sm.apply()
 	return sm
 }

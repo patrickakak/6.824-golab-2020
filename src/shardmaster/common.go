@@ -35,8 +35,8 @@ func init() {
 	labgob.Register(JoinArgs{})
 	labgob.Register(JoinReply{})
 	labgob.Register(LeaveArgs{})
-	labgob.Register(MoveArgs{})
 	labgob.Register(LeaveReply{})
+	labgob.Register(MoveArgs{})
 	labgob.Register(MoveReply{})
 }
 
@@ -49,11 +49,10 @@ type Config struct {
 }
 
 func (c *Config) Copy() Config {
-	config := Config{
-		Num:    c.Num,
-		Shards: c.Shards,
-		Groups: make(map[int][]string),
-	}
+	config := Config{}
+	config.Num = c.Num
+	config.Shards = c.Shards
+	config.Groups = make(map[int][]string)
 	for gid, s := range c.Groups {
 		config.Groups[gid] = append([]string{}, s...)
 	}
