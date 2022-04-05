@@ -1,19 +1,17 @@
 package shardmaster
 
 import (
-	"os"
-	"testing"
-
-	"../labrpc"
-	"../raft"
-
-	// import "log"
 	crand "crypto/rand"
 	"encoding/base64"
 	"math/rand"
+	"os"
 	"runtime"
 	"sync"
+	"testing"
 	"time"
+
+	"../labrpc"
+	"../raft"
 )
 
 func randstring(n int) string {

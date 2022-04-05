@@ -47,13 +47,11 @@ func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) {
 }
 
 func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) {
-	// Your code here.
 	res := sm.runCmd("Leave", args.MsgId, args.ClientId, *args)
 	reply.Err, reply.WrongLeader = res.Err, res.WrongLeader
 }
 
 func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) {
-	// Your code here.
 	res := sm.runCmd("Move", args.MsgId, args.ClientId, *args)
 	reply.Err, reply.WrongLeader = res.Err, res.WrongLeader
 }
@@ -123,7 +121,7 @@ func (sm *ShardMaster) adjustConfig(config *Config) {
 					}
 				}
 			} else {
-				// count < avg, might have no position
+				// count < avg
 				for i, val := range config.Shards {
 					if count == avg {
 						break

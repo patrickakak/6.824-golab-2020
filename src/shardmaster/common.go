@@ -53,6 +53,7 @@ func (c *Config) Copy() Config {
 	config.Num = c.Num
 	config.Shards = c.Shards
 	config.Groups = make(map[int][]string)
+
 	for gid, s := range c.Groups {
 		config.Groups[gid] = append([]string{}, s...)
 	}
